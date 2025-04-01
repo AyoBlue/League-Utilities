@@ -16,7 +16,7 @@ async def create_connection(loop: asyncio.AbstractEventLoop = None):
         user = 'ayoblue',
         password = os.environ['PASSWD'],
         database = 'League Utilities',
-        host = '10.0.0.136',
+        host = os.environ['HOST'],
         timeout = 10,
         loop = loop
     )
