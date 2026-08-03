@@ -57,7 +57,7 @@ jobs:
         run: |
           ssh -i "$HOME/.ssh/deploy_key" "$SSH_USER@$SSH_HOST" 'bash -se' <<'REMOTE'
           DEPLOY_DIR="$HOME/League-Utilities"
-          SERVICE_NAME="league-utilities-bot.service"
+          PROCESS_NAME="league-utilities-bot"
 
           mkdir -p "$DEPLOY_DIR"
           tar -xzf /tmp/league-utilities.tar.gz -C "$DEPLOY_DIR"
@@ -67,27 +67,15 @@ jobs:
           "$DEPLOY_DIR/.venv/bin/python" -m pip install --upgrade pip
           "$DEPLOY_DIR/.venv/bin/python" -m pip install discord.py python-dotenv asyncpg
 
-          mkdir -p "$HOME/.config/systemd/user"
-          cat > "$HOME/.config/systemd/user/$SERVICE_NAME" <<UNIT
-          [Unit]
-          Description=League Utilities Discord bot
-          After=network-online.target
-          Wants=network-online.target
+          if pm2 describe "$PROCESS_NAME" >/dev/null 2>&1; then
+            pm2 restart "$PROCESS_NAME" --update-env
+          else
+            pm2 start "$DEPLOY_DIR/bot.py" \
+              --name "$PROCESS_NAME" \
+              --cwd "$DEPLOY_DIR" \
+              --interpreter "$DEPLOY_DIR/.venv/bin/python"
+          fi
 
-          [Service]
-          Type=simple
-          WorkingDirectory=$DEPLOY_DIR
-          EnvironmentFile=-$DEPLOY_DIR/.env
-          ExecStart=$DEPLOY_DIR/.venv/bin/python $DEPLOY_DIR/bot.py
-          Restart=always
-          RestartSec=5
-
-          [Install]
-          WantedBy=default.target
-          UNIT
-
-          systemctl --user daemon-reload
-          systemctl --user enable "$SERVICE_NAME"
-          systemctl --user restart "$SERVICE_NAME"
-          systemctl --user --no-pager --full status "$SERVICE_NAME"
+          pm2 save
+          pm2 show "$PROCESS_NAME"
           REMOTE
