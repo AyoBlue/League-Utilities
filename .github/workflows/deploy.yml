@@ -1,0 +1,93 @@
+name: Deploy Discord bot
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+          SSH_HOST: ${{ secrets.DO_HOST }}
+        run: |
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          ssh-keyscan -H "$SSH_HOST" >> "$HOME/.ssh/known_hosts"
+
+      - name: Package application
+        run: |
+          tar \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.env' \
+            --exclude='__pycache__' \
+            -czf /tmp/league-utilities.tar.gz .
+
+      - name: Upload application
+        env:
+          SSH_HOST: ${{ secrets.DO_HOST }}
+          SSH_USER: ${{ secrets.DO_USER }}
+        run: |
+          scp -i "$HOME/.ssh/deploy_key" \
+            /tmp/league-utilities.tar.gz \
+            "$SSH_USER@$SSH_HOST:/tmp/league-utilities.tar.gz"
+
+      - name: Install and restart bot
+        env:
+          SSH_HOST: ${{ secrets.DO_HOST }}
+          SSH_USER: ${{ secrets.DO_USER }}
+        run: |
+          ssh -i "$HOME/.ssh/deploy_key" "$SSH_USER@$SSH_HOST" 'bash -se' <<'REMOTE'
+          DEPLOY_DIR="$HOME/League-Utilities"
+          SERVICE_NAME="league-utilities-bot.service"
+
+          mkdir -p "$DEPLOY_DIR"
+          tar -xzf /tmp/league-utilities.tar.gz -C "$DEPLOY_DIR"
+          rm /tmp/league-utilities.tar.gz
+
+          python3 -m venv "$DEPLOY_DIR/.venv"
+          "$DEPLOY_DIR/.venv/bin/python" -m pip install --upgrade pip
+          "$DEPLOY_DIR/.venv/bin/python" -m pip install discord.py python-dotenv asyncpg
+
+          mkdir -p "$HOME/.config/systemd/user"
+          cat > "$HOME/.config/systemd/user/$SERVICE_NAME" <<UNIT
+          [Unit]
+          Description=League Utilities Discord bot
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=simple
+          WorkingDirectory=$DEPLOY_DIR
+          EnvironmentFile=-$DEPLOY_DIR/.env
+          ExecStart=$DEPLOY_DIR/.venv/bin/python $DEPLOY_DIR/bot.py
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=default.target
+          UNIT
+
+          systemctl --user daemon-reload
+          systemctl --user enable "$SERVICE_NAME"
+          systemctl --user restart "$SERVICE_NAME"
+          systemctl --user --no-pager --full status "$SERVICE_NAME"
+          REMOTE
