@@ -1,5 +1,5 @@
 from .database import database
-import definitions
+from . import definitions
 import discord
 
 class Utils:
