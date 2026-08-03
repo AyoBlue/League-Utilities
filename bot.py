@@ -24,7 +24,4 @@ class LeagueBot(commands.Bot):
         await super().close()
 
 bot = LeagueBot(command_prefix="!", intents=discord.Intents().all())
-token = os.getenv("DISCORD_TOKEN", os.environ["DISCORD_TOKEN"])
-
-print(token)
-bot.run(token)
+bot.run(os.getenv("DISCORD_TOKEN"))
