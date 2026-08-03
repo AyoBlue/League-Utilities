@@ -17,7 +17,7 @@ class LeagueBot(commands.Bot):
         await self.tree.sync()
 
     async def on_ready(self):
-        print(f"Logged in as {self.user} (ID: {self.user.id})\nWatching over {len(self.guilds)} guild(s).")
+        print(f"Logged in as {self.user} (ID: {self.user.id})\nWatching over {len(self.guilds)} guild(s)")
 
     async def close(self):
         await league.database.close()
