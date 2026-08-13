@@ -65,7 +65,7 @@ jobs:
 
           python3 -m venv "$DEPLOY_DIR/.venv"
           "$DEPLOY_DIR/.venv/bin/python" -m pip install --upgrade pip
-          "$DEPLOY_DIR/.venv/bin/python" -m pip install discord.py python-dotenv asyncpg
+          "$DEPLOY_DIR/.venv/bin/python" -m pip install discord.py python-dotenv asyncpg Pillow
 
           if pm2 describe "$PROCESS_NAME" >/dev/null 2>&1; then
             pm2 restart "$PROCESS_NAME" --update-env
